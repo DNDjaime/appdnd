@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DND Mini Market - Tu entretenimiento sin límites</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans">
+    
+    <header class="bg-black text-white p-4 text-center text-xl font-bold">
+        DND Mini Market
+    </header>
+
+    <section class="banner bg-blue-600 text-white p-6 text-center">
+        <h1 class="text-3xl font-bold mb-2">¡Bienvenido a DND Mini Market!</h1>
+        <p>Cuentas premium para toda Latinoamérica, entrega rápida y soporte real.</p>
+    </section>
+
+    <section class="container mx-auto mt-8 p-4">
+        <h2 class="text-2xl font-bold mb-4">Nuestros Precios</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white p-4 rounded shadow">
+                <h3 class="text-xl font-bold">Prime Video</h3>
+                <p class="text-gray-600">Disfruta de tus series y películas favoritas.</p>
+                <button onclick="abrirPasarela('Prime Video', 4500)" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded">Comprar</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="container mx-auto mt-8 p-4 bg-white rounded shadow">
+        <h2 class="text-xl font-bold mb-4">Métodos de Pago</h2>
+        <div class="flex flex-wrap items-center gap-4">
+            <img src="img/qr-bolivia.png" alt="QR Bolivia" class="w-16 h-16 object-contain">
+            <img src="mercadopago.png" alt="Mercado Pago" class="w-16 h-16 object-contain">
+            <img src="img/pix-logo.png" alt="Pix Brasil" class="w-16 h-16 object-contain">
+        </div>
+    </section>
+
+    <footer class="bg-gray-800 text-white p-4 text-center mt-8">
+        <p>&copy; 2026 App DND - Hecho con amor para Latam</p>
+    </footer>
+
+    <script>
+        function abrirPasarela(producto, precio) {
+            console.log('Abriendo pasarela para ' + producto + ' por ' + precio);
+        }
+    </script>
+</body>
+</html>
