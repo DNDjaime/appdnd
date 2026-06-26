@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><style>
+@font-face {
+  font-family: "Optimistic";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Optimistic Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
+}
+:where(html) {
+  font-family: "Optimistic", system-ui, sans-serif;
+}
+:where(code, pre, kbd, samp) {
+  font-family: "Optimistic Mono", ui-monospace, monospace;
+}
+</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DND - Panel Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+  import { getFirestore, doc, setDoc, getDoc, getDocs, collection, updateDoc, onSnapshot, query, where } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+  
+  const firebaseConfig = {
+    // PEGA TU CONFIG DE FIREBASE AQUÍ
+    apiKey: "TU_API_KEY",
+    authDomain: "TU_AUTH_DOMAIN",
+    projectId: "TU_PROJECT_ID",
+    storageBucket: "TU_STORAGE_BUCKET",
+    messagingSenderId: "TU_SENDER_ID",
+    appId: "TU_APP_ID"
+  };
+  
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+  window.db = db;
+  window.auth = auth;
+  window.firestore = { doc, setDoc, getDoc, getDocs, collection, updateDoc, onSnapshot, query, where };
+  window.firebaseAuth = { signInWithEmailAndPassword, onAuthStateChanged, signOut };
+</script>
+<style>
+  body { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .role-admin { display: none; }
+  .role-operador { display: none; }
+  body.admin .role-admin { display: block !important; }
+  body.operador .role-operador { display: block !important; }
+  
+</style>
+</head>
+<body class="bg-gray-50">
+
+  <div class="role-admin p-6">
+    <div class="max-w-6xl mx-auto">
+      <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold">Panel de Admin</h1>
+        <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded">Salir</button>
+      </div>
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow p-6">
+          <h2 class="font-bold text-xl mb-4 text-[#FF7A00]">Cambiar Precios</h2>
+          <div id="lista-productos"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h2 class="font-bold text-xl mb-4 text-[#FF7A00]">Subir QR de Pagos</h2>
+          <select id="qr-method" class="border p-2 w-full mb-2 rounded">
+            <option>Pix - Brasil</option>
+            <option>Yape - Perú</option>
+            <option>USDT</option>
+            <option>Binance Pay</option>
+          </select>
+          <input type="file" id="qr-upload" accept="image/*" class="mb-2">
+          <button onclick="subirQR()" class="bg-[#FF7A00] text-white px-4 py-2 rounded w-full">Subir QR</button>
+          <div id="qr-preview" class="mt-4"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h2 class="font-bold text-xl mb-4 text-[#FF7A00]">Gestión de Productos</h2>
+          <input id="nuevo-nombre" placeholder="Nombre producto" class="border p-2 w-full mb-2 rounded">
+          <input id="nuevo-precio" type="number" placeholder="Precio BOB" class="border p-2 w-full mb-2 rounded">
+          <button onclick="addProduct()" class="bg-green-500 text-white px-4 py-2 rounded w-full">+ Crear Producto</button>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h2 class="font-bold text-xl mb-4 text-[#FF7A00]">Banner Estrenos</h2>
+          <textarea id="texto-banner" class="border w-full p-2 rounded h-24 mb-2"></textarea>
+          <button onclick="guardarBanner()" class="bg-[#FF7A00] text-white px-4 py-2 rounded w-full">Actualizar Banner</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="p-8 text-center">
+    <p class="text-red-500">Acceso denegado. Solo Admin.</p>
+  </div>
+  
+<script type="module">
+
+  const { doc, setDoc, getDoc, getDocs, collection, updateDoc, onSnapshot } = window.firestore;
+  const { onAuthStateChanged, signOut } = window.firebaseAuth;
+  
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) return window.location.href = '01_login.html';
+    const userDoc = await getDoc(doc(db, 'usuarios', user.uid));
+    if (userDoc.data()?.role !== 'admin') return window.location.href = '01_login.html';
+    document.body.classList.add('admin');
+    cargarProductos();
+    cargarBanner();
+  });
+  
+  async function cargarProductos() {
+    const snap = await getDocs(collection(db, 'productos'));
+    document.getElementById('lista-productos').innerHTML = snap.docs.map(d => {
+      const p = d.data();
+      return `<div class="border p-3 mb-2 rounded flex justify-between items-center">
+        <span class="font-bold">${p.nombre}</span>
+        <div>
+          <input type="number" value="${p.precio}" onchange="updatePrecio('${d.id}', this.value)" class="border px-2 py-1 w-20 rounded">
+          <span class="text-sm">BOB</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  
+  window.updatePrecio = async (id, precio) => {
+    await updateDoc(doc(db, 'productos', id), { precio: parseFloat(precio) });
+    alert('Precio actualizado');
+  };
+  
+  window.subirQR = async () => {
+    const file = document.getElementById('qr-upload').files[0];
+    const method = document.getElementById('qr-method').value;
+    if(!file) return alert('Selecciona imagen');
+    const reader = new FileReader();
+    reader.onload = async e => {
+      await setDoc(doc(db, 'qr', method), { imagen: e.target.result });
+      document.getElementById('qr-preview').innerHTML = `<img src="${e.target.result}" class="w-40">`;
+      alert('QR guardado');
+    };
+    reader.readAsDataURL(file);
+  };
+  
+  window.addProduct = async () => {
+    const nombre = document.getElementById('nuevo-nombre').value;
+    const precio = document.getElementById('nuevo-precio').value;
+    if(!nombre || !precio) return alert('Completa los campos');
+    await setDoc(doc(collection(db, 'productos')), { nombre, precio: parseFloat(precio) });
+    cargarProductos();
+  };
+  
+  async function cargarBanner() {
+    const banner = await getDoc(doc(db, 'config', 'banner'));
+    document.getElementById('texto-banner').value = banner.data()?.texto || '';
+  }
+  
+  window.guardarBanner = async () => {
+    const texto = document.getElementById('texto-banner').value;
+    await setDoc(doc(db, 'config', 'banner'), { texto });
+    alert('Banner actualizado');
+  };
+  
+  window.logout = () => signOut(auth).then(() => window.location.href = '01_login.html');
+  
+</script>
+<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;var a=target.closest?target.closest("a[href]"):null;if(!a||!a.href||!/^https?:\/\//.test(a.href))return;if(a.href.replace(/#.*$/,"")===loc)return;var productId=extractProductId(target)||extractProductId(a);if(!productId)return;e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*")},true)})();</script></body>
+</html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><style>
+@font-face {
+  font-family: "Optimistic";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Optimistic Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
+}
+:where(html) {
+  font-family: "Optimistic", system-ui, sans-serif;
+}
+:where(code, pre, kbd, samp) {
+  font-family: "Optimistic Mono", ui-monospace, monospace;
+}
+</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DND - Panel Operador</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+  import { getFirestore, doc, setDoc, getDoc, getDocs, collection, updateDoc, onSnapshot, query, where } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+  
+  const firebaseConfig = {
+    // PEGA TU CONFIG DE FIREBASE AQUÍ
+    apiKey: "TU_API_KEY",
+    authDomain: "TU_AUTH_DOMAIN",
+    projectId: "TU_PROJECT_ID",
+    storageBucket: "TU_STORAGE_BUCKET",
+    messagingSenderId: "TU_SENDER_ID",
+    appId: "TU_APP_ID"
+  };
+  
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+  window.db = db;
+  window.auth = auth;
+  window.firestore = { doc, setDoc, getDoc, getDocs, collection, updateDoc, onSnapshot, query, where };
+  window.firebaseAuth = { signInWithEmailAndPassword, onAuthStateChanged, signOut };
+</script>
+<style>
+  body { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .role-admin { display: none; }
+  .role-operador { display: none; }
+  body.admin .role-admin { display: block !important; }
+  body.operador .role-operador { display: block !important; }
+  
+</style>
+</head>
+<body class="bg-gray-50">
+
+  <div class="role-operador p-6">
+    <div class="max-w-6xl mx-auto">
+      <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold">Panel de Operador</h1>
+        <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded">Salir</button>
+      </div>
+      <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6">
+        <p class="font-bold">⚠️ IMPORTANTE:</p>
+        <p class="text-sm">Solo marca "Pagado" cuando confirmes que el dinero llegó a la cuenta. No confíes solo en capturas.</p>
+      </div>
+      <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="font-bold text-xl mb-4">Pedidos Pendientes de Verificación</h2>
+        <div id="pedidos-pendientes"></div>
+      </div>
+    </div>
+  </div>
+  <div class="p-8 text-center">
+    <p class="text-red-500">Acceso denegado. Solo Operadores.</p>
+  </div>
+  
+<script type="module">
+
+  const { doc, getDoc, getDocs, collection, updateDoc, onSnapshot, query, where } = window.firestore;
+  const { onAuthStateChanged, signOut } = window.firebaseAuth;
+  
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) return window.location.href = '01_login.html';
+    const userDoc = await getDoc(doc(db, 'usuarios', user.uid));
+    if (userDoc.data()?.role !== 'operador') return window.location.href = '01_login.html';
+    document.body.classList.add('operador');
+    escucharPedidos();
+  });
+  
+  function escucharPedidos() {
+    const q = query(collection(db, 'pedidos'), where('estado', '==', 'pendiente_verificacion'));
+    onSnapshot(q, (snap) => {
+      document.getElementById('pedidos-pendientes').innerHTML = snap.docs.map(d => {
+        const p = d.data();
+        return `<div class="border p-4 mb-3 rounded">
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <p class="font-bold">${p.producto}</p>
+              <p class="text-sm text-gray-600">Cliente: ${p.cliente_email}</p>
+              <p class="text-sm text-gray-600">Código: ${d.id}</p>
+              <p class="text-sm text-gray-600">Monto: ${p.monto} ${p.moneda}</p>
+              <p class="text-sm text-gray-600">Método: ${p.metodo_pago}</p>
+            </div>
+            <span class="bg-yellow-200 text-yellow-800 px-3 py-1 rounded text-xs">PENDIENTE</span>
+          </div>
+          ${p.comprobante_url ? `<img src="${p.comprobante_url}" class="w-40 mb-2 border">` : ''}
+          <div class="flex gap-2">
+            <button onclick="confirmarPago('${d.id}')" class="bg-green-500 text-white px-4 py-2 rounded text-sm">✓ Confirmar Pago Recibido</button>
+            <button onclick="rechazarPago('${d.id}')" class="bg-red-500 text-white px-4 py-2 rounded text-sm">✕ Rechazar</button>
+          </div>
+        </div>`;
+      }).join('') || '<p class="text-gray-500">No hay pedidos pendientes</p>';
+    });
+  }
+  
+  window.confirmarPago = async (id) => {
+    if(!confirm('¿Confirmas que el dinero ya está en la cuenta bancaria?')) return;
+    await updateDoc(doc(db, 'pedidos', id), { 
+      estado: 'entregado',
+      fecha_entrega: new Date().toISOString(),
+      link_descarga: 'https://tu-link-de-entrega.com/' + id
+    });
+    alert('Pago confirmado. Cliente notificado con link de descarga.');
+  };
+  
+  window.rechazarPago = async (id) => {
+    const motivo = prompt('Motivo del rechazo:');
+    if(!motivo) return;
+    await updateDoc(doc(db, 'pedidos', id), { estado: 'rechazado', motivo_rechazo: motivo });
+  };
+  
+  window.logout = () => signOut(auth).then(() => window.location.href = '01_login.html');
+  
+</script>
+<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;var a=target.closest?target.closest("a[href]"):null;if(!a||!a.href||!/^https?:\/\//.test(a.href))return;if(a.href.replace(/#.*$/,"")===loc)return;var productId=extractProductId(target)||extractProductId(a);if(!productId)return;e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*")},true)})();</script></body>
+</html>
